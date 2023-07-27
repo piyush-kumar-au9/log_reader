@@ -1,31 +1,42 @@
 import fs from 'fs';
 
+function readFile(fileName: string) {
+    const fileData: string = fs.readFileSync(fileName, 'utf-8');
+    const regex: RegExp = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) .+ "(GET \/[^\/\s]+\/[^\/\s]+\/[^\/\s]+)\/[^"]*" (\d{3})/g;
 
-function readFile(fileName:string) {
-    let fileData: string = fs.readFileSync(fileName, 'utf-8');
-    let regex: RegExp = /GET .*? \d\d\d/g;
+    const endpointCountMap = new Map<string, number>();
+    const minuteCountMap = new Map<string, number>();
+    const statusCodeCountMap = new Map<string, number>();
 
-    let filteredAPI = [fileData.match(regex)];
-
-    function getCount(data: string[], searchValue: string) {
-        return data.filter((x: string) => x === searchValue).length;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(fileData)) !== null) {
+        const [_, timestamp, endpoint, statusCode] = match; // Destructure the matched data
+        // Update endpoint count
+        endpointCountMap.set(endpoint, (endpointCountMap.get(endpoint) || 0) + 1);
+        // Update minute count
+        const minute = timestamp.slice(0, 16);
+        minuteCountMap.set(minute, (minuteCountMap.get(minute) || 0) + 1);
+        // Update status code count
+        statusCodeCountMap.set(statusCode, (statusCodeCountMap.get(statusCode) || 0) + 1);
     }
 
-    var globalObj: {}[] = [];
-    if (filteredAPI[0] !== null) {
-        let unique_data = [...new Set(filteredAPI[0])];
-        for (let i of unique_data) {
-            let obj = {
-                [i]: { count: getCount(filteredAPI[0], i) }
-            }
-            globalObj.push(obj);
-        }
-    }
+    const endpointStats = Array.from(endpointCountMap, ([endpoint, count]) => ({ Endpoint: endpoint, 'Call Count': count }));
+    const minuteStats = Array.from(minuteCountMap, ([minute, count]) => ({ Minute: minute, 'Call Count': count }));
+    const statusCodeStats = Array.from(statusCodeCountMap, ([statusCode, count]) => ({ 'Status Code': statusCode, 'Call Count': count }));
 
-    return globalObj;
-
+    return {
+        endpointStats,
+        minuteStats,
+        statusCodeStats,
+    };
 }
 
-
+// provide the log file name here to read the file
 const result = readFile("./logFiles/api-prod-out.log");
 
+console.log("Endpoint Stats:");
+console.table(result.endpointStats);
+console.log("\nMinute Stats:");
+console.table(result.minuteStats);
+console.log("\nStatus Code Stats:");
+console.table(result.statusCodeStats);
